@@ -1,3 +1,11 @@
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb'
+    }
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -7,9 +15,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   
   try {
-    const body = req.body
-    const messages = body?.messages
-    const system = body?.system
+    const { messages, system } = req.body
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -22,7 +28,7 @@ export default async function handler(req, res) {
         model: 'claude-sonnet-4-20250514', 
         max_tokens: 1200, 
         system: system || 'You are an expert music theorist.', 
-        messages: messages || [{role:'user',content:'Hello'}]
+        messages
       })
     })
     const data = await response.json()
