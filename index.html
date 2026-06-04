@@ -1140,7 +1140,7 @@ const noteList = noteData && noteData.notes ? noteData.notes.map(n => {
 }) : (text.match(/\b([A-Ga-g][#b♯♭]?\d)\b/g)||[]);
   const hasNotes = noteData && noteData.notes && noteData.notes.length > 0;
   const staffHtml = `<div id="${staffContainerId}" class="sheet-music-container" style="display:none;margin:.75rem 0;background:white;border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow-x:auto"></div>`;
-  const midiHtml = noteList.length ? midiPlayer(noteList, playLabel||'Play passage') : '';
+const midiHtml = '';
   showOutput(resultId, `
     <div class="output-area" style="min-height:auto">${text.replace(/\n/g,'<br>')}</div>
     ${staffHtml}
