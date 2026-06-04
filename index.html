@@ -861,24 +861,7 @@ Rules for the JSON:
   
   return { text: result, noteData: null };
 }
-  // First get the text analysis
-  const textResult = await callClaude(userMsg, system, fileData, mediaType);
-  
-  // Then ask for structured note data
-  const notePrompt = `Based on this musical passage analysis, extract ONLY the melody notes as a JSON array.
-Analysis: ${textResult}
 
-Return ONLY valid JSON in this exact format, nothing else:
-{
-  "keySig": "C",
-  "timeSig": "4/4",
-  "clef": "treble",
-  "notes": [
-    {"pitch": "c/4", "duration": "q"},
-    {"pitch": "d/4", "duration": "q"},
-    {"pitch": "e/4", "duration": "h"}
-  ]
-}
 
 Rules:
 - pitch format: note_name/octave e.g. "c/4", "f#/5", "bb/3"
