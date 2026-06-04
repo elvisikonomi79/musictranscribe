@@ -833,35 +833,24 @@ async function callClaude(userMsg, system, fileData, mediaType) {
 // ── SHEET MUSIC RENDERER ──────────────────────────────────────────────────
 // Ask Claude for structured note data then render with VexFlow
 async function callClaudeForNotes(userMsg, system, fileData, mediaType) {
-  const combinedSystem = system + `
-
-IMPORTANT: At the very end of your response, after your full analysis, add a JSON block like this:
-<NOTES_JSON>
-{"keySig":"C","timeSig":"4/4","clef":"treble","notes":[{"pitch":"c/4","duration":"q"},{"pitch":"d/4","duration":"q"}]}
-</NOTES_JSON>
-
-Rules for the JSON:
-- pitch format: note/octave e.g. "c/4", "f#/5", "bb/3"  
-- duration: "w"=whole "h"=half "q"=quarter "8"=eighth
-- keySig: C G D A E B F Bb Eb Ab
-- clef: treble or bass
-- Max 24 notes, melody only
-- ALWAYS include this block, even for simple passages`;
-
-  const result = await callClaude(userMsg, combinedSystem, fileData, mediaType);
+  // First get the text analysis
+  const textResult = await callClaude(userMsg, system, fileData, mediaType);
   
-  try {
-    const match = result.match(/<NOTES_JSON>([\s\S]*?)<\/NOTES_JSON>/);
-    if (match) {
-      const noteData = JSON.parse(match[1].trim());
-      const cleanText = result.replace(/<NOTES_JSON>[\s\S]*?<\/NOTES_JSON>/, '').trim();
-      return { text: cleanText, noteData };
-    }
-  } catch(e) { console.error('Note parse error:', e); }
-  
-  return { text: result, noteData: null };
+  // Then ask for structured note data
+  const notePrompt = `Based on this musical passage analysis, extract ONLY the melody notes as a JSON array.
+Analysis: ${textResult}
+
+Return ONLY valid JSON in this exact format, nothing else:
+{
+  "keySig": "C",
+  "timeSig": "4/4",
+  "clef": "treble",
+  "notes": [
+    {"pitch": "c/4", "duration": "q"},
+    {"pitch": "d/4", "duration": "q"},
+    {"pitch": "e/4", "duration": "h"}
+  ]
 }
-
 
 Rules:
 - pitch format: note_name/octave e.g. "c/4", "f#/5", "bb/3"
