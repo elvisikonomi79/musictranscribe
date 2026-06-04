@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MusicTranscribe — Music Notation & Transcription</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vexflow/4.2.2/vexflow.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --ink:#1a1208;--ink2:#3d2e1a;--ink3:#6b5740;
+  --parchment:#faf6ee;--parchment2:#f2ead8;--parchment3:#e8dfc8;
+  --gold:#c8973a;--gold2:#a37828;
+  --accent:#1d4a3e;--accent2:#2d6b5c;
+  --danger:#8b2020;
+  --border:rgba(26,18,8,0.18);
+  --shadow:0 4px 24px rgba(26,18,8,0.12);
+  --radius:6px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+body{font-family:'DM Sans',sans-serif;background:var(--parchment);color:var(--ink);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:repeating-linear-gradient(0deg,transparent,transparent 27px,rgba(26,18,8,0.04) 27px,rgba(26,18,8,0.04) 28px);pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 10% 10%,rgba(200,151,58,0.06) 0%,transparent 60%),radial-gradient(ellipse at 90% 90%,rgba(29,74,62,0.05) 0%,transparent 60%);pointer-events:none;z-index:0}
+
+header{position:relative;z-index:10;padding:1.5rem 2.5rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-end;justify-content:space-between;background:rgba(250,246,238,0.95);backdrop-filter:blur(8px)}
+.brand{display:flex;align-items:center;gap:1rem}
+.brand-icon{width:44px;height:44px;background:var(--ink);border-radius:4px;display:flex;align-items:center;justify-content:center}
+.brand-text h1{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:600;letter-spacing:-0.02em;line-height:1;color:var(--ink)}
+.brand-text p{font-size:0.72rem;font-weight:300;color:var(--ink3);letter-spacing:0.1em;text-transform:uppercase;margin-top:3px}
+.version-badge{background:var(--parchment3);border:1px solid var(--border);border-radius:99px;padding:3px 10px;font-size:0.72rem;color:var(--ink3);font-weight:500}
+
+nav{position:relative;z-index:10;display:flex;gap:0;border-bottom:1px solid var(--border);background:rgba(242,234,216,0.75);backdrop-filter:blur(4px);padding:0 2.5rem;overflow-x:auto}
+.nav-tab{padding:.9rem 1.25rem;font-size:0.8rem;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;border:none;background:none;color:var(--ink3);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .2s,border-color .2s;display:flex;align-items:center;gap:6px}
+.nav-tab:hover{color:var(--ink)}
+.nav-tab.active{color:var(--ink);border-bottom-color:var(--gold)}
+
+.workspace{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:0;min-height:calc(100vh - 125px)}
+.pane{padding:1.75rem 2.5rem;border-right:1px solid var(--border)}
+.pane:last-child{border-right:none}
+.pane-label{font-size:0.68rem;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:1.1rem;display:flex;align-items:center;gap:8px}
+.pane-label::after{content:'';flex:1;height:0.5px;background:var(--border)}
+
+.panel{display:none}
+.panel.active{display:contents}
+
+label{display:block;font-size:0.78rem;font-weight:500;color:var(--ink2);margin-bottom:4px}
+select,input[type=text]{width:100%;background:rgba(255,255,255,0.6);border:1px solid var(--border);border-radius:var(--radius);padding:8px 30px 8px 10px;font-size:0.85rem;font-family:'DM Sans',sans-serif;color:var(--ink);outline:none;transition:border-color .2s;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b5740' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+select:focus,input[type=text]:focus{border-color:var(--gold);background-color:rgba(255,255,255,.9)}
+textarea{width:100%;background:rgba(255,255,255,.5);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:0.82rem;font-family:'DM Mono',monospace;color:var(--ink);line-height:1.7;resize:vertical;min-height:160px;outline:none;transition:border-color .2s}
+textarea:focus{border-color:var(--gold);background:rgba(255,255,255,.8)}
+.field{margin-bottom:.9rem}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.three-col{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end}
+.arrow-mid{font-family:'Playfair Display',serif;font-size:1.3rem;color:var(--gold);text-align:center;padding-bottom:8px}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius);border:1px solid var(--border);background:rgba(255,255,255,.5);color:var(--ink);font-size:0.82rem;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .18s;white-space:nowrap}
+.btn:hover{background:rgba(255,255,255,.85);border-color:var(--ink3)}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--ink);color:var(--parchment);border-color:var(--ink)}
+.btn-primary:hover{background:var(--ink2);border-color:var(--ink2)}
+.btn-sm{padding:5px 11px;font-size:0.77rem}
+.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:1.1rem}
+
+.output-area{background:rgba(255,255,255,.35);border:1px solid var(--border);border-radius:var(--radius);min-height:180px;padding:1.1rem;font-size:0.85rem;line-height:1.75;color:var(--ink2);white-space:pre-wrap}
+.output-placeholder{color:var(--ink3);font-style:italic;font-family:'Playfair Display',serif;font-size:.9rem;display:flex;align-items:center;justify-content:center;min-height:200px;text-align:center;flex-direction:column;gap:8px}
+.output-placeholder .big-icon{font-size:2.2rem;opacity:.3}
+
+#staff-container{background:white;border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-top:.75rem;overflow-x:auto;min-height:110px}
+
+.loading-bar{height:2px;background:linear-gradient(90deg,var(--gold),var(--accent2),var(--gold));background-size:200% 100%;animation:shimmer 1.4s linear infinite;border-radius:2px;margin:.75rem 0}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.loading-text{font-size:.82rem;color:var(--ink3);font-style:italic;text-align:center;font-family:'Playfair Display',serif}
+
+.midi-player{background:var(--ink);border-radius:var(--radius);padding:10px 14px;display:flex;align-items:center;gap:10px;margin-top:.75rem}
+.midi-player-title{color:rgba(250,246,238,.55);font-size:.73rem;flex:1}
+.play-btn{width:32px;height:32px;border-radius:50%;border:1px solid rgba(200,151,58,.5);background:rgba(200,151,58,.15);color:var(--gold);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .18s}
+.play-btn:hover{background:rgba(200,151,58,.3)}
+.tempo-control{display:flex;align-items:center;gap:6px}
+.tempo-control label{color:rgba(250,246,238,.45);font-size:.7rem;margin:0}
+.tempo-control input{width:52px;background:rgba(255,255,255,.1);color:var(--parchment);border:1px solid rgba(255,255,255,.15);padding:4px 7px;border-radius:4px;font-size:.77rem;background-image:none;padding-right:7px}
+
+.drop-zone{border:1.5px dashed var(--border);border-radius:var(--radius);padding:1.75rem;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--gold);background:rgba(200,151,58,.04)}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop-zone-icon{font-size:1.8rem;color:var(--ink3);opacity:.45;margin-bottom:6px}
+.drop-zone p{font-size:.82rem;color:var(--ink3)}
+#scan-preview{max-width:100%;border-radius:var(--radius);margin-top:.75rem;display:none;border:1px solid var(--border)}
+
+.export-bar{display:flex;gap:7px;flex-wrap:wrap;padding:.9rem 0 0;border-top:1px solid var(--border);margin-top:1.25rem}
+.sub-tabs{display:flex;gap:4px;margin-bottom:1rem;flex-wrap:wrap}
+.sub-tab{padding:4px 11px;font-size:.77rem;border:1px solid var(--border);border-radius:99px;cursor:pointer;background:transparent;color:var(--ink3);transition:all .15s}
+.sub-tab.active,.sub-tab:hover{background:var(--ink);color:var(--parchment);border-color:var(--ink)}
+
+.info-badge{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--parchment3);color:var(--ink3);font-size:9px;text-align:center;line-height:14px;cursor:help;margin-left:3px;vertical-align:middle}
+.error-msg{color:var(--danger);font-size:.82rem;margin-top:8px}
+.hint{font-size:.77rem;color:var(--ink3);margin-top:4px;line-height:1.5}
+
+/* Instrument group headers in select */
+optgroup{font-weight:600;color:var(--ink2)}
+
+/* Capo indicator */
+.capo-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.capo-row label{margin:0;white-space:nowrap}
+.capo-row select{width:auto;flex-shrink:0}
+
+/* Fingering palette */
+.finger-palette{display:flex;gap:6px;flex-wrap:wrap;margin-top:.5rem}
+.finger-btn{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.5);font-size:.78rem;font-family:'DM Mono',monospace;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink2);transition:all .15s;font-weight:500}
+.finger-btn:hover{background:var(--ink);color:var(--parchment);border-color:var(--ink)}
+.finger-btn.rh{background:rgba(200,151,58,.12);border-color:rgba(200,151,58,.4)}
+.finger-btn.rh:hover{background:var(--gold);color:white;border-color:var(--gold)}
+
+/* Section divider */
+.section-divider{font-size:.68rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin:1rem 0 .6rem;padding-bottom:4px;border-bottom:1px solid var(--border)}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+
+@media(max-width:768px){.workspace{grid-template-columns:1fr}.pane{border-right:none;border-bottom:1px solid var(--border);padding:1.25rem 1.5rem}header{padding:1.1rem 1.5rem}nav{padding:0 1rem}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <rect x="2" y="7" width="22" height="1.5" fill="#faf6ee" opacity=".55"/>
+        <rect x="2" y="11" width="22" height="1.5" fill="#faf6ee" opacity=".55"/>
+        <rect x="2" y="15" width="22" height="1.5" fill="#faf6ee" opacity=".55"/>
+        <rect x="2" y="19" width="22" height="1.5" fill="#faf6ee" opacity=".55"/>
+        <circle cx="8" cy="19.5" r="2.8" fill="#c8973a"/>
+        <rect x="10.5" y="8" width="1.4" height="12" fill="#faf6ee"/>
+        <circle cx="17" cy="15.5" r="2.8" fill="#faf6ee"/>
+        <rect x="19.4" y="4.5" width="1.4" height="11.5" fill="#faf6ee"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <h1>MusicTranscribe</h1>
+      <p>Transpose · Transcribe · Analyze</p>
+    </div>
+  </div>
+  <span class="version-badge">musictranscribe.com</span>
+</header>
+
+<nav>
+  <button class="nav-tab active" onclick="switchPanel('transpose')">⇄ Transpose</button>
+  <button class="nav-tab" onclick="switchPanel('tab')">♩ Read Tab</button>
+  <button class="nav-tab" onclick="switchPanel('classical')">🎼 Classical Guitar</button>
+  <button class="nav-tab" onclick="switchPanel('earlym')">⊕ Early Music</button>
+  <button class="nav-tab" onclick="switchPanel('scan')">⊡ Scan Score</button>
+  <button class="nav-tab" onclick="switchPanel('theory')">∑ Theory</button>
+  <button class="nav-tab" onclick="switchPanel('roman')">Ⅰ Harmony</button>
+</nav>
+
+<!-- ══ TRANSPOSE ══════════════════════════════════════════════════════════ -->
+<div id="panel-transpose" class="workspace panel active">
+  <div class="pane">
+    <div class="pane-label">Transposition</div>
+    <div class="field">
+      <div class="three-col">
+        <div>
+          <label>From instrument</label>
+          <select id="from-instr">
+            <optgroup label="— Concert / Keyboard">
+              <option value="C">Concert pitch (C)</option>
+              <option value="piano">Piano</option>
+              <option value="harpsichord">Harpsichord</option>
+              <option value="organ">Organ</option>
+              <option value="accordion">Accordion</option>
+            </optgroup>
+            <optgroup label="— B♭ Instruments">
+              <option value="Bb" selected>B♭ Trumpet</option>
+              <option value="Bb-clar">B♭ Clarinet</option>
+              <option value="Bb-soprano-sax">B♭ Soprano Sax</option>
+              <option value="Bb-tenor-sax">B♭ Tenor Sax</option>
+              <option value="Bb-bass-clar">B♭ Bass Clarinet</option>
+            </optgroup>
+            <optgroup label="— E♭ Instruments">
+              <option value="Eb">E♭ Alto Saxophone</option>
+              <option value="Eb-bari">E♭ Baritone Saxophone</option>
+              <option value="Eb-horn">E♭ Horn</option>
+            </optgroup>
+            <optgroup label="— F Instruments">
+              <option value="F">French Horn in F</option>
+              <option value="F-english">English Horn (cor anglais)</option>
+            </optgroup>
+            <optgroup label="— String (Treble)">
+              <option value="violin">Violin</option>
+              <option value="classical-gtr">Classical Guitar (sounds 8va bassa)</option>
+              <option value="baroque-gtr">Baroque Guitar</option>
+              <option value="mandolin">Mandolin</option>
+            </optgroup>
+            <optgroup label="— String (Alto/Tenor)">
+              <option value="viola">Viola (alto clef)</option>
+              <option value="cello">Cello (bass/tenor clef)</option>
+            </optgroup>
+            <optgroup label="— Bass Clef">
+              <option value="bass">Bass clef (concert)</option>
+              <option value="trombone">Trombone</option>
+              <option value="bass-gtr">Bass Guitar</option>
+              <option value="double-bass">Double Bass (sounds 8va bassa)</option>
+              <option value="bassoon">Bassoon</option>
+              <option value="contrabassoon">Contrabassoon</option>
+            </optgroup>
+            <optgroup label="— Other Transposing">
+              <option value="Db">D♭ Piccolo</option>
+              <option value="A-clar">Clarinet in A</option>
+              <option value="G-alto-flute">Alto Flute in G</option>
+              <option value="Bb-bass-tuba">B♭ Bass Tuba</option>
+            </optgroup>
+            <optgroup label="— Early Music">
+              <option value="renaissance-lute">Renaissance Lute (G tuning)</option>
+              <option value="baroque-lute">Baroque Lute (D tuning)</option>
+              <option value="theorbo">Theorbo</option>
+              <option value="vihuela">Vihuela</option>
+              <option value="baroque-recorder">Baroque Recorder (treble in F)</option>
+              <option value="renaissance-recorder">Renaissance Recorder (treble in G)</option>
+            </optgroup>
+            <optgroup label="— Folk / World">
+              <option value="ukulele">Ukulele</option>
+              <option value="banjo">Banjo (5-string)</option>
+              <option value="irish-bouzouki">Irish Bouzouki</option>
+              <option value="balalaika">Balalaika</option>
+              <option value="charango">Charango</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="arrow-mid">→</div>
+        <div>
+          <label>To instrument</label>
+          <select id="to-instr">
+            <optgroup label="— Concert / Keyboard">
+              <option value="C" selected>Concert pitch (C)</option>
+              <option value="piano">Piano</option>
+              <option value="harpsichord">Harpsichord</option>
+              <option value="organ">Organ</option>
+              <option value="accordion">Accordion</option>
+            </optgroup>
+            <optgroup label="— B♭ Instruments">
+              <option value="Bb">B♭ Trumpet</option>
+              <option value="Bb-clar">B♭ Clarinet</option>
+              <option value="Bb-soprano-sax">B♭ Soprano Sax</option>
+              <option value="Bb-tenor-sax">B♭ Tenor Sax</option>
+              <option value="Bb-bass-clar">B♭ Bass Clarinet</option>
+            </optgroup>
+            <optgroup label="— E♭ Instruments">
+              <option value="Eb">E♭ Alto Saxophone</option>
+              <option value="Eb-bari">E♭ Baritone Saxophone</option>
+              <option value="Eb-horn">E♭ Horn</option>
+            </optgroup>
+            <optgroup label="— F Instruments">
+              <option value="F">French Horn in F</option>
+              <option value="F-english">English Horn (cor anglais)</option>
+            </optgroup>
+            <optgroup label="— String (Treble)">
+              <option value="violin">Violin</option>
+              <option value="classical-gtr">Classical Guitar</option>
+              <option value="baroque-gtr">Baroque Guitar</option>
+              <option value="mandolin">Mandolin</option>
+            </optgroup>
+            <optgroup label="— String (Alto/Tenor)">
+              <option value="viola">Viola (alto clef)</option>
+              <option value="cello">Cello</option>
+            </optgroup>
+            <optgroup label="— Bass Clef">
+              <option value="bass">Bass clef (concert)</option>
+              <option value="trombone">Trombone</option>
+              <option value="bass-gtr">Bass Guitar</option>
+              <option value="double-bass">Double Bass</option>
+              <option value="bassoon">Bassoon</option>
+              <option value="contrabassoon">Contrabassoon</option>
+            </optgroup>
+            <optgroup label="— Other Transposing">
+              <option value="Db">D♭ Piccolo</option>
+              <option value="A-clar">Clarinet in A</option>
+              <option value="G-alto-flute">Alto Flute in G</option>
+            </optgroup>
+            <optgroup label="— Early Music">
+              <option value="renaissance-lute">Renaissance Lute</option>
+              <option value="baroque-lute">Baroque Lute</option>
+              <option value="theorbo">Theorbo</option>
+              <option value="vihuela">Vihuela</option>
+              <option value="baroque-recorder">Baroque Recorder (treble F)</option>
+              <option value="renaissance-recorder">Renaissance Recorder (treble G)</option>
+            </optgroup>
+            <optgroup label="— Folk / World">
+              <option value="ukulele">Ukulele</option>
+              <option value="banjo">Banjo (5-string)</option>
+              <option value="irish-bouzouki">Irish Bouzouki</option>
+              <option value="balalaika">Balalaika</option>
+              <option value="charango">Charango</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="field two-col">
+      <div>
+        <label>Key signature</label>
+        <select id="key-sig">
+          <option>C major / A minor</option><option>G major / E minor</option>
+          <option>D major / B minor</option><option>A major / F# minor</option>
+          <option>E major / C# minor</option><option>B major / G# minor</option>
+          <option>F major / D minor</option><option>B♭ major / G minor</option>
+          <option>E♭ major / C minor</option><option>A♭ major / F minor</option>
+          <option>D♭ major / B♭ minor</option>
+        </select>
+      </div>
+      <div>
+        <label>Octave shift</label>
+        <select id="octave-shift">
+          <option value="-2">Down 2 octaves</option><option value="-1">Down 1 octave</option>
+          <option value="0" selected>None</option>
+          <option value="1">Up 1 octave</option><option value="2">Up 2 octaves</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes or passage <span class="info-badge" title="Space-separated notes e.g. C4 D4 E4 or describe in words">?</span></label>
+      <textarea id="transpose-input" placeholder="C4 D4 E4 F4 G4 A4 B4 C5&#10;&#10;or describe the passage, e.g.&#10;opening of Bach's Bouree in E minor"></textarea>
+    </div>
+    <div class="field">
+      <label>Context (optional)</label>
+      <input type="text" id="transpose-context" placeholder="e.g. beginner player, needs to stay in first position">
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="doTranspose()">⇄ Transpose</button>
+      <button class="btn btn-sm" onclick="loadExample('transpose')">Example</button>
+      <button class="btn btn-sm" onclick="clearAll('transpose')">Clear</button>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-label">Result</div>
+    <div id="transpose-result"><div class="output-placeholder"><div class="big-icon">♪</div><p>Transposed passage appears here.</p></div></div>
+  </div>
+</div>
+
+<!-- ══ READ TAB ═══════════════════════════════════════════════════════════ -->
+<div id="panel-tab" class="workspace panel">
+  <div class="pane">
+    <div class="pane-label">ASCII Tablature</div>
+    <div class="field two-col">
+      <div>
+        <label>Instrument / tuning</label>
+        <select id="tab-tuning">
+          <optgroup label="— Guitar">
+            <option value="guitar-std">Guitar — Standard (EADGBe)</option>
+            <option value="guitar-drop-d">Guitar — Drop D (DADGBe)</option>
+            <option value="guitar-open-g">Guitar — Open G (DGDGBd)</option>
+            <option value="guitar-open-d">Guitar — Open D (DADf#Ad)</option>
+            <option value="guitar-dadgad">Guitar — DADGAD</option>
+            <option value="guitar-open-e">Guitar — Open E (EBE G#Be)</option>
+            <option value="guitar-open-a">Guitar — Open A (EAEAc#e)</option>
+            <option value="guitar-half-step-down">Guitar — Half step down (Eb Ab Db Gb Bb eb)</option>
+          </optgroup>
+          <optgroup label="— Classical Guitar">
+            <option value="classical-std">Classical Guitar — Standard (EADGBe)</option>
+            <option value="classical-dropped-d">Classical Guitar — Dropped D (DADGBe)</option>
+          </optgroup>
+          <optgroup label="— Bass">
+            <option value="bass-std">Bass — Standard (EADg)</option>
+            <option value="bass-5">Bass — 5-string (BEADg)</option>
+            <option value="bass-6">Bass — 6-string (BEADgc)</option>
+            <option value="bass-drop-d">Bass — Drop D (DADg)</option>
+          </optgroup>
+          <optgroup label="— Early Music (with course tunings)">
+            <option value="renaissance-lute-6">Renaissance Lute 6-course (G tuning)</option>
+            <option value="renaissance-lute-7">Renaissance Lute 7-course</option>
+            <option value="baroque-lute-11">Baroque Lute 11-course (D minor tuning)</option>
+            <option value="baroque-gtr">Baroque Guitar 5-course (A tuning)</option>
+            <option value="vihuela">Vihuela 6-course (G tuning, like Renaissance lute)</option>
+            <option value="theorbo">Theorbo (reentrant tuning with diapasons)</option>
+          </optgroup>
+          <optgroup label="— Other">
+            <option value="ukulele">Ukulele — Standard (GCEa)</option>
+            <option value="ukulele-baritone">Ukulele — Baritone (DGBe)</option>
+            <option value="banjo-5">Banjo 5-string (gDGBd)</option>
+            <option value="mandolin">Mandolin (GDAe)</option>
+            <option value="irish-bouzouki">Irish Bouzouki (GDAd)</option>
+            <option value="charango">Charango (GCEAe)</option>
+          </optgroup>
+        </select>
+      </div>
+      <div>
+        <label>Output format</label>
+        <select id="tab-output">
+          <option value="notes">Note names + octaves</option>
+          <option value="chords">Chord names &amp; voicings</option>
+          <option value="full">Full musical description</option>
+          <option value="lilypond">LilyPond notation</option>
+          <option value="standard">Describe as standard notation</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <div class="capo-row">
+        <label>Capo</label>
+        <select id="capo-fret" style="width:auto">
+          <option value="0">No capo</option>
+          <option value="1">Fret 1</option><option value="2">Fret 2</option>
+          <option value="3">Fret 3</option><option value="4">Fret 4</option>
+          <option value="5">Fret 5</option><option value="6">Fret 6</option>
+          <option value="7">Fret 7</option><option value="8">Fret 8</option>
+          <option value="9">Fret 9</option><option value="10">Fret 10</option>
+        </select>
+        <span class="hint" style="margin:0">— adjusts all sounding pitches</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>Paste ASCII tablature</label>
+      <textarea id="tab-input" style="min-height:150px;font-size:.78rem" placeholder="e|--0--3--5-3-0----|&#10;B|--1--3--5-3-1----|&#10;G|--0--2--4-2-0----|&#10;D|--2--0--2-0-2----|&#10;A|--3--------3----|&#10;E|----------------|&#10;&#10;For lute tablature use French/Italian tab notation and describe the system."></textarea>
+    </div>
+    <div class="field">
+      <label>Context (optional)</label>
+      <input type="text" id="tab-context" placeholder="e.g. fingerpicking, baroque ornamentation, campanella technique">
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="doTab()">♩ Read Tab</button>
+      <button class="btn btn-sm" onclick="loadExample('tab')">Example</button>
+      <button class="btn btn-sm" onclick="clearAll('tab')">Clear</button>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-label">Result</div>
+    <div id="tab-result"><div class="output-placeholder"><div class="big-icon">♫</div><p>Paste tablature and click Read Tab.</p></div></div>
+  </div>
+</div>
+
+<!-- ══ CLASSICAL GUITAR ═══════════════════════════════════════════════════ -->
+<div id="panel-classical" class="workspace panel">
+  <div class="pane">
+    <div class="pane-label">Classical Guitar Notation</div>
+
+    <div class="section-divider">Passage input</div>
+    <div class="field">
+      <label>Describe the passage or paste notes</label>
+      <textarea id="classical-input" placeholder="e.g. Sor Study Op.6 No.6 opening — melody on first string with bass notes on open strings&#10;&#10;or paste note names: e4 b3 g3 e3 d3 b2&#10;&#10;or describe: ascending A minor arpeggio starting on A2"></textarea>
+    </div>
+
+    <div class="section-divider">Tuning &amp; position</div>
+    <div class="field two-col">
+      <div>
+        <label>Scordatura (alternate tuning)</label>
+        <select id="classical-tuning">
+          <option value="std">Standard (E A D G B e)</option>
+          <option value="drop-d">Dropped D (D A D G B e)</option>
+          <option value="drop-d-low-e">D A D G B d (two dropped)</option>
+          <option value="tarrega">Tárrega scordatura (D A D G B e)</option>
+          <option value="custom">Custom (describe below)</option>
+        </select>
+      </div>
+      <div>
+        <label>Capo position</label>
+        <select id="classical-capo">
+          <option value="0">No capo</option>
+          <option value="1">Cejilla fret 1</option><option value="2">Cejilla fret 2</option>
+          <option value="3">Cejilla fret 3</option><option value="4">Cejilla fret 4</option>
+          <option value="5">Cejilla fret 5</option><option value="7">Cejilla fret 7</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section-divider">Right-hand fingering (RH)</div>
+    <div class="field">
+      <label>RH fingering style</label>
+      <select id="rh-style">
+        <option value="free">Free stroke (tirando)</option>
+        <option value="rest">Rest stroke (apoyando)</option>
+        <option value="arpegio">Arpeggio (p i m a)</option>
+        <option value="rasgueado">Rasgueado</option>
+        <option value="tremolo">Tremolo (p a m i)</option>
+        <option value="campanella">Campanella</option>
+        <option value="pizzicato">Pizzicato (ponticello)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Insert RH finger symbol into passage description</label>
+      <div class="finger-palette">
+        <button class="finger-btn rh" onclick="insertFinger('p')" title="pulgar (thumb)">p</button>
+        <button class="finger-btn rh" onclick="insertFinger('i')" title="índice (index)">i</button>
+        <button class="finger-btn rh" onclick="insertFinger('m')" title="medio (middle)">m</button>
+        <button class="finger-btn rh" onclick="insertFinger('a')" title="anular (ring)">a</button>
+        <button class="finger-btn rh" onclick="insertFinger('c')" title="chico (little finger — flamenco)">c</button>
+      </div>
+    </div>
+
+    <div class="section-divider">Left-hand fingering (LH)</div>
+    <div class="field">
+      <div class="finger-palette">
+        <button class="finger-btn" onclick="insertFinger('①')" title="LH index">①</button>
+        <button class="finger-btn" onclick="insertFinger('②')" title="LH middle">②</button>
+        <button class="finger-btn" onclick="insertFinger('③')" title="LH ring">③</button>
+        <button class="finger-btn" onclick="insertFinger('④')" title="LH little">④</button>
+        <button class="finger-btn" onclick="insertFinger('B')" title="Barre">B</button>
+        <button class="finger-btn" onclick="insertFinger('½B')" title="Half barre">½B</button>
+      </div>
+    </div>
+
+    <div class="section-divider">Request type</div>
+    <div class="field">
+      <select id="classical-task">
+        <option value="fingering">Suggest complete fingering (LH + RH)</option>
+        <option value="position">Suggest position (1st, 2nd… position)</option>
+        <option value="string">String assignment (which string for each note)</option>
+        <option value="transpose">Transpose to another key/instrument</option>
+        <option value="technique">Explain technique &amp; interpretation</option>
+        <option value="simplify">Simplify for beginner/intermediate level</option>
+        <option value="arrangement">Arrange for solo classical guitar</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Player level</label>
+      <select id="classical-level">
+        <option value="beginner">Beginner (open position, simple chords)</option>
+        <option value="intermediate" selected>Intermediate (up to 5th position)</option>
+        <option value="advanced">Advanced (full neck, complex fingering)</option>
+        <option value="concert">Concert level (Segovia, Bream standard)</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="doClassical()">🎼 Analyze</button>
+      <button class="btn btn-sm" onclick="loadExample('classical')">Example</button>
+      <button class="btn btn-sm" onclick="clearAll('classical')">Clear</button>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-label">Fingering &amp; Notation</div>
+    <div id="classical-result"><div class="output-placeholder"><div class="big-icon">🎼</div><p>Classical guitar analysis appears here.</p></div></div>
+  </div>
+</div>
+
+<!-- ══ EARLY MUSIC ════════════════════════════════════════════════════════ -->
+<div id="panel-earlym" class="workspace panel">
+  <div class="pane">
+    <div class="pane-label">Early Music Instruments</div>
+
+    <div class="field">
+      <label>Instrument</label>
+      <select id="early-instr">
+        <optgroup label="— Plucked strings">
+          <option value="renaissance-lute-6">Renaissance Lute — 6 course (G tuning, c.1500–1600)</option>
+          <option value="renaissance-lute-7">Renaissance Lute — 7 course (G tuning, c.1550–1620)</option>
+          <option value="renaissance-lute-10">Renaissance Lute — 10 course (late renaissance)</option>
+          <option value="baroque-lute-11">Baroque Lute — 11 course (D minor tuning, c.1680–1750)</option>
+          <option value="baroque-lute-13">Baroque Lute — 13 course (extended bass)</option>
+          <option value="theorbo-14">Theorbo — 14 course (Roman/Italian, Kapsberger)</option>
+          <option value="theorbo-french">Theorbo — French (chitarrone, Mersenne tuning)</option>
+          <option value="archlute">Archlute (arciliuto)</option>
+          <option value="vihuela-6">Vihuela — 6 course (G tuning, Spain c.1500–1580)</option>
+          <option value="baroque-gtr-5">Baroque Guitar — 5 course (A tuning, c.1600–1750)</option>
+          <option value="baroque-gtr-alfabeto">Baroque Guitar — Alfabeto chord system</option>
+          <option value="cittern">Cittern (Renaissance)</option>
+          <option value="bandora">Bandora (orpharion)</option>
+        </optgroup>
+        <optgroup label="— Bowed strings">
+          <option value="viola-da-gamba-treble">Viola da gamba — Treble (D tuning)</option>
+          <option value="viola-da-gamba-alto">Viola da gamba — Alto (G tuning)</option>
+          <option value="viola-da-gamba-tenor">Viola da gamba — Tenor (c tuning)</option>
+          <option value="viola-da-gamba-bass">Viola da gamba — Bass (D tuning)</option>
+          <option value="pardessus">Pardessus de viole</option>
+          <option value="lyra-viol">Lyra viol (harp way)</option>
+          <option value="violone">Violone</option>
+        </optgroup>
+        <optgroup label="— Wind">
+          <option value="recorder-soprano">Recorder — Soprano in C</option>
+          <option value="recorder-alto-baroque">Recorder — Alto/Treble baroque (F)</option>
+          <option value="recorder-alto-renaissance">Recorder — Alto renaissance (G)</option>
+          <option value="recorder-tenor">Recorder — Tenor in C</option>
+          <option value="recorder-bass">Recorder — Bass in F</option>
+          <option value="cornetto">Cornetto (cornett)</option>
+          <option value="sackbut">Sackbut (renaissance trombone)</option>
+          <option value="renaissance-flute">Renaissance flute (one-keyed)</option>
+          <option value="crumhorn">Crumhorn</option>
+          <option value="shawm">Shawm</option>
+          <option value="dulcian">Dulcian (renaissance bassoon)</option>
+        </optgroup>
+        <optgroup label="— Keyboard">
+          <option value="harpsichord">Harpsichord</option>
+          <option value="clavichord">Clavichord</option>
+          <option value="virginal">Virginal / Spinet</option>
+          <option value="organ-renaissance">Renaissance organ (mean-tone temperament)</option>
+          <option value="organ-baroque">Baroque organ (well temperament)</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Task</label>
+      <select id="early-task">
+        <option value="tuning">Explain tuning &amp; course arrangement</option>
+        <option value="tablature">Read / transcribe tablature (French, Italian, German, Spanish)</option>
+        <option value="transpose">Transpose a passage for this instrument</option>
+        <option value="range">Describe playable range &amp; comfortable keys</option>
+        <option value="technique">Explain technique, ornamentation &amp; style</option>
+        <option value="modern">Convert old notation / tab to modern standard notation</option>
+        <option value="compare">Compare to modern equivalent instrument</option>
+        <option value="repertoire">Suggest core repertoire &amp; editions</option>
+        <option value="continuo">Continuo realization guidance</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Tablature system (if reading tab)</label>
+      <select id="early-tab-system">
+        <option value="french">French lute tablature (letters a b c d…)</option>
+        <option value="italian">Italian lute tablature (numbers, top string = 1)</option>
+        <option value="german">German lute tablature (Buchstabentabulatur)</option>
+        <option value="spanish">Spanish vihuela tablature (numbers, top = 1)</option>
+        <option value="alfabeto">Alfabeto (baroque guitar chord letters)</option>
+        <option value="mixed">Mixed / describe in text</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Paste tablature or describe the passage</label>
+      <textarea id="early-input" placeholder="Paste old tablature here, or describe what you want to know.&#10;&#10;Examples:&#10;— French lute tab: a/ b c d e f g&#10;— Alfabeto: A B C G E&#10;— Or describe: 'opening of Dowland's Lachrimae Pavan'&#10;— Or ask: 'what notes does course 3 of a baroque lute produce?'"></textarea>
+    </div>
+
+    <div class="field">
+      <label>Period / style context (optional)</label>
+      <input type="text" id="early-context" placeholder="e.g. Dowland 1600, Weiss suite, Sanz Instruccion, Kapsberger toccata">
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="doEarlyMusic()">⊕ Analyze</button>
+      <button class="btn btn-sm" onclick="loadExample('early')">Example</button>
+      <button class="btn btn-sm" onclick="clearAll('early')">Clear</button>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-label">Early Music Analysis</div>
+    <div id="early-result"><div class="output-placeholder"><div class="big-icon">⊕</div><p>Select an instrument and task to begin.</p></div></div>
+  </div>
+</div>
+
+<!-- ══ SCAN ═══════════════════════════════════════════════════════════════ -->
+<div id="panel-scan" class="workspace panel">
+  <div class="pane">
+    <div class="pane-label">Score Scanning</div>
+    <div class="field">
+      <label>Upload score image</label>
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="scan-file" accept="image/*,.pdf,application/pdf" onchange="handleScanFile(event)">
+        <div class="drop-zone-icon">⊡</div>
+        <p><strong>Click or drag</strong> a score image or PDF</p>
+        <p style="margin-top:3px;font-size:.75rem">JPG · PNG · <strong>PDF</strong> (multi-page supported) · Handwritten or printed · Any clef</p>
+      </div>
+      <div id="scan-file-info" style="display:none;margin-top:.6rem;padding:8px 10px;background:rgba(200,151,58,.1);border:1px solid rgba(200,151,58,.3);border-radius:var(--radius);font-size:.8rem;color:var(--ink2);display:none;align-items:center;gap:8px">
+        <span id="scan-file-icon" style="font-size:1.1rem"></span>
+        <span id="scan-file-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <span id="scan-file-pages" style="color:var(--ink3);white-space:nowrap"></span>
+        <button onclick="clearScanFile()" style="border:none;background:none;cursor:pointer;color:var(--ink3);font-size:1rem;padding:0 2px" title="Remove file">✕</button>
+      </div>
+      <div id="scan-page-selector" style="display:none;margin-top:.5rem" class="field">
+        <label>Pages to analyze <span class="info-badge" title="For large PDFs, specify which pages contain music">?</span></label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="scan-page-mode" onchange="togglePageRange()" style="width:auto">
+            <option value="all">All pages</option>
+            <option value="first">First page only</option>
+            <option value="range">Page range</option>
+            <option value="specific">Specific pages</option>
+          </select>
+          <input type="text" id="scan-page-range" placeholder="e.g. 1-3 or 1,3,5" style="display:none;flex:1">
+        </div>
+      </div>
+      <img id="scan-preview" alt="Uploaded score">
+    </div>
+    <div class="field">
+      <label>Or describe the score</label>
+      <textarea id="scan-desc" placeholder="e.g. 4/4 time, key of D major, treble clef, quarter notes D E F# G then eighth run..." style="min-height:80px"></textarea>
+    </div>
+    <div class="field two-col">
+      <div>
+        <label>Task</label>
+        <select id="scan-task">
+          <option value="read">Transcribe all notes</option>
+          <option value="transpose">Transpose to another instrument</option>
+          <option value="chords">Identify chord progressions</option>
+          <option value="modernize">Modernize old notation</option>
+          <option value="fingering">Suggest fingering</option>
+          <option value="analyze">Full musical analysis</option>
+          <option value="early-tab">Read early music tablature</option>
+        </select>
+      </div>
+      <div>
+        <label>Target instrument</label>
+        <select id="scan-target">
+          <option>Concert pitch (C)</option>
+          <option>B♭ Trumpet</option><option>B♭ Clarinet</option>
+          <option>Alto Saxophone</option><option>French Horn in F</option>
+          <option>Trombone</option><option>Classical Guitar</option>
+          <option>Renaissance Lute</option><option>Baroque Lute</option>
+          <option>Theorbo</option><option>Vihuela</option>
+          <option>Viola da gamba</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="doScan()">⊡ Analyze Score</button>
+      <button class="btn btn-sm" onclick="clearAll('scan')">Clear</button>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-label">Analysis</div>
+    <div id="scan-result"><div class="output-placeholder"><div class="big-icon">⊡</div><p>Upload a score image or describe it.</p></div></div>
+  </div>
+</div>
+
+<!-- ══ THEORY ══════════════════════════════════════════════════════════════ -->
+<div id="panel-theory" class="workspace panel">
+  <div class="pane">
+    <div class="pane-label">Music Theory</div>
+    <div class="field">
+      <textarea id="theory-input" placeholder="What are the notes in a G major scale?&#10;How do I write for two clarinets?&#10;Explain baroque ornamentation (trills, mordents, appoggiatura)&#10;What is mean-tone temperament?&#10;How do I realize a figured bass?&#10;What chords work in A minor?" style="min-height:130px"></textarea>
+    </div>
+    <div class="field two-col">
+      <div>
+        <label>Instrument context</label>
+        <select id="theory-instr">
+          <option value="">Any instrument</option>
+          <option>Classical Guitar</option><option>Baroque Guitar</option>
+          <option>Renaissance Lute</option><option>Baroque Lute</option>
+          <option>Theorbo</option><option>Vihuela</option>
+          <option>Viola da gamba</option>
+          <option>Piano</option><option>Harpsichord</option>
+          <option>Violin</option><option>Cello</option>
+          <option>Trumpet</option><option>Clarinet</option>
+          <option>Flute</option><option>Recorder</option>
+          <option>Voice</option>
+        </select>
+      </div>
+      <div>
+        <label>Level</label>
+        <select id="theory-level">
+          <option value="beginner">Beginner</option>
+          <option value="intermediate" selected>Intermediate</option>
+          <option value="advanced">Advanced</option>
+          <option value="professional">Professional / scholarly</option>
+        </select>
+      </div>
+    </div>
+    <div class="sub-tabs">
+      <button class="sub-tab active" onclick="theoryPreset(this,'scale')">Scales</button>
+      <button class="sub-tab" onclick="theoryPreset(this,'chord')">Chords</button>
+      <button class="sub-tab" onclick="theoryPreset(this,'rhythm')">Rhythm</button>
+      <button class="sub-tab" onclick="theoryPreset(this,'terms')">Terms</button>
+      <button class="sub-tab" onclick="theoryPreset(this,'arrange')">Arranging</button>
+      <button class="sub-tab" onclick="theoryPreset(this,'baroque')">Baroque</button>
+      <button class="sub-tab" onclick="theoryPreset(this,'figured')">Figured bass</button>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="doTheory()">∑ Ask</button>
+      <button class="btn btn-sm" onclick="clearAll('theory')">Clear</button>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-label">Answer</div>
+    <div id="theory-result"><div class="output-placeholder"><div class="big-icon">∑</div><p>Ask any music theory question.</p></div></div>
+  </div>
+</div>
+
+<!-- ══ ROMAN / HARMONY ════════════════════════════════════════════════════ -->
+<div id="panel-roman" class="workspace panel">
+  <div class="pane">
+    <div class="pane-label">Harmonic Analysis</div>
+    <div class="field">
+      <textarea id="roman-input" placeholder="Cmaj7 - Am7 - Fmaj7 - G7&#10;&#10;or paste a lead sheet:&#10;| Dm7 | G7 | Cmaj7 | A7 |&#10;| Dm7 | G7 | Em7 A7 | Dm7 |&#10;&#10;or describe: I borrow a chord from C minor in bar 3" style="min-height:140px"></textarea>
+    </div>
+    <div class="field two-col">
+      <div>
+        <label>Key</label>
+        <select id="roman-key">
+          <option>C major</option><option>G major</option><option>D major</option>
+          <option>A major</option><option>E major</option><option>B major</option>
+          <option>F major</option><option>B♭ major</option><option>E♭ major</option>
+          <option>A♭ major</option><option>A minor</option><option>E minor</option>
+          <option>D minor</option><option>G minor</option><option>B minor</option>
+          <option>C# minor</option>
+        </select>
+      </div>
+      <div>
+        <label>Analysis style</label>
+        <select id="roman-depth">
+          <option value="basic">Basic Roman numerals</option>
+          <option value="extended" selected>Extended (7ths, secondary dominants)</option>
+          <option value="jazz">Jazz (alterations, substitutions)</option>
+          <option value="baroque">Baroque / figured bass style</option>
+          <option value="schenker">Schenkerian (prolongations)</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <input type="text" id="roman-context" placeholder="Style context: jazz standard, Bach chorale, flamenco, renaissance polyphony…">
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="doRoman()">Ⅰ Analyze</button>
+      <button class="btn btn-sm" onclick="loadExample('roman')">Example</button>
+      <button class="btn btn-sm" onclick="clearAll('roman')">Clear</button>
+    </div>
+  </div>
+  <div class="pane">
+    <div class="pane-label">Analysis</div>
+    <div id="roman-result"><div class="output-placeholder"><div class="big-icon">Ⅰ</div><p>Roman numeral analysis appears here.</p></div></div>
+  </div>
+</div>
+
+<script>
+// ── API ───────────────────────────────────────────────────────────────────
+async function callClaude(userMsg, system, fileData, mediaType) {
+  const content = [];
+  if (fileData && mediaType) {
+    if (mediaType === 'application/pdf') {
+      content.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:fileData}});
+    } else {
+      content.push({type:'image',source:{type:'base64',media_type:mediaType,data:fileData}});
+    }
+  }
+  content.push({type:'text',text:userMsg});
+  const r = await fetch('/api/analyze',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({system:system||'You are an expert music theorist and transcriptionist.',messages:[{role:'user',content}]})
+  });
+  const d = await r.json();
+  if(d.error) throw new Error(d.error.message);
+  return d.content.map(b=>b.text||'').join('');
+}
+
+// ── SHEET MUSIC RENDERER ──────────────────────────────────────────────────
+// Ask Claude for structured note data then render with VexFlow
+async function callClaudeForNotes(userMsg, system, fileData, mediaType) {
+  // First get the text analysis
+  const textResult = await callClaude(userMsg, system, fileData, mediaType);
+  
+  // Then ask for structured note data
+  const notePrompt = `Based on this musical passage analysis, extract ONLY the melody notes as a JSON array.
+Analysis: ${textResult}
+
+Return ONLY valid JSON in this exact format, nothing else:
+{
+  "keySig": "C",
+  "timeSig": "4/4",
+  "clef": "treble",
+  "notes": [
+    {"pitch": "c/4", "duration": "q"},
+    {"pitch": "d/4", "duration": "q"},
+    {"pitch": "e/4", "duration": "h"}
+  ]
+}
+
+Rules:
+- pitch format: note_name/octave e.g. "c/4", "f#/5", "bb/3"
+- duration: "w"=whole, "h"=half, "q"=quarter, "8"=eighth, "16"=sixteenth
+- keySig options: "C","G","D","A","E","B","F","Bb","Eb","Ab"
+- clef: "treble" or "bass"
+- Maximum 32 notes
+- Return ONLY the JSON, no other text`;
+
+  const noteResult = await callClaude(notePrompt, 'You are a music data extractor. Return only valid JSON.');
+  
+  try {
+    const clean = noteResult.replace(/```json|```/g,'').trim();
+    return { text: textResult, noteData: JSON.parse(clean) };
+  } catch(e) {
+    return { text: textResult, noteData: null };
+  }
+}
+
+// Render sheet music using VexFlow with proper multi-stave support
+function renderSheetMusic(containerId, noteData) {
+  const el = document.getElementById(containerId);
+  if (!el || !noteData || !noteData.notes || !noteData.notes.length) {
+    if(el) el.style.display='none';
+    return;
+  }
+  
+  try {
+    const VF = Vex.Flow;
+    el.innerHTML = '';
+    el.style.display = 'block';
+    
+    const STAVE_WIDTH = 520;
+    const NOTES_PER_LINE = 8;
+    const notes = noteData.notes.slice(0, 32);
+    const lines = Math.ceil(notes.length / NOTES_PER_LINE);
+    const totalHeight = lines * 110 + 40;
+    
+    const renderer = new VF.Renderer(el, VF.Renderer.Backends.SVG);
+    renderer.resize(STAVE_WIDTH + 40, totalHeight);
+    const ctx = renderer.getContext();
+    ctx.setFont('Arial', 10);
+    
+    // Key signature map
+    const keySigMap = {
+      'C':'C','G':'G','D':'D','A':'A','E':'E','B':'B',
+      'F':'F','Bb':'Bb','Eb':'Eb','Ab':'Ab','Db':'Db'
+    };
+    const keySig = keySigMap[noteData.keySig] || 'C';
+    const clef = noteData.clef || 'treble';
+    
+    for (let line = 0; line < lines; line++) {
+      const lineNotes = notes.slice(line * NOTES_PER_LINE, (line + 1) * NOTES_PER_LINE);
+      const y = line * 110 + 20;
+      const staveW = line === 0 ? STAVE_WIDTH : STAVE_WIDTH - 30;
+      const staveX = line === 0 ? 20 : 50;
+      
+      const stave = new VF.Stave(staveX, y, staveW);
+      if (line === 0) {
+        stave.addClef(clef);
+        stave.addKeySignature(keySig);
+        stave.addTimeSignature(noteData.timeSig || '4/4');
+      } else {
+        stave.addClef(clef);
+        stave.addKeySignature(keySig);
+      }
+      stave.setContext(ctx).draw();
+      
+      // Build VexFlow notes
+      const vfNotes = lineNotes.map(n => {
+        try {
+          const pitch = n.pitch || 'b/4';
+          const dur = n.duration || 'q';
+          const note = new VF.StaveNote({ clef, keys: [pitch], duration: dur });
+          // Add accidentals if needed
+          if (pitch.includes('#')) note.addModifier(new VF.Accidental('#'), 0);
+          else if (pitch.includes('b') && !/^[a-g]b\//.test(pitch) === false) {
+            // flat accidentals
+            if (pitch.match(/[a-g]b\//)) note.addModifier(new VF.Accidental('b'), 0);
+          }
+          return note;
+        } catch(e) {
+          return new VF.StaveNote({ clef, keys: ['b/4'], duration: 'q' });
+        }
+      });
+      
+      const voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+      voice.setStrict(false);
+      voice.addTickables(vfNotes);
+      
+      new VF.Formatter().joinVoices([voice]).format([voice], staveW - 60);
+      voice.draw(ctx, stave);
+    }
+    
+  } catch(e) {
+    console.error('Sheet music render error:', e);
+    if(el) el.innerHTML = '<p style="color:var(--ink3);font-size:.78rem;padding:8px;font-style:italic">Sheet music preview unavailable for this passage.</p>';
+  }
+}
+
+// ── PANELS ────────────────────────────────────────────────────────────────
+function switchPanel(name) {
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  const names=['transpose','tab','classical','earlym','scan','theory','roman'];
+  document.querySelectorAll('.nav-tab')[names.indexOf(name)].classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+function showLoading(id,msg){
+  document.getElementById(id).innerHTML=`<div class="loading-bar"></div><p class="loading-text">${msg||'Analyzing…'}</p>`;
+}
+function showOutput(id,html){document.getElementById(id).innerHTML=html;}
+
+// ── VEXFLOW ───────────────────────────────────────────────────────────────
+function renderStaff(containerId,noteStrings){
+  const el=document.getElementById(containerId);
+  if(!el||!noteStrings||!noteStrings.length)return;
+  try{
+    const VF=Vex.Flow;el.innerHTML='';
+    const renderer=new VF.Renderer(el,VF.Renderer.Backends.SVG);
+    const width=Math.max(300,noteStrings.length*52+130);
+    renderer.resize(width,120);
+    const ctx=renderer.getContext();
+    const stave=new VF.Stave(10,20,width-20);
+    stave.addClef('treble').addTimeSignature('4/4');
+    stave.setContext(ctx).draw();
+    const notes=noteStrings.slice(0,16).map(n=>{
+      try{return new VF.StaveNote({clef:'treble',keys:[n],duration:'q'});}
+      catch(e){return new VF.StaveNote({clef:'treble',keys:['b/4'],duration:'q'});}
+    });
+    const voice=new VF.Voice({num_beats:notes.length,beat_value:4});
+    voice.setStrict(false);voice.addTickables(notes);
+    new VF.Formatter().joinVoices([voice]).format([voice],width-140);
+    voice.draw(ctx,stave);
+  }catch(e){el.innerHTML='<p style="color:var(--ink3);font-size:.78rem;padding:8px">Staff preview not available for this passage.</p>';}
+}
+
+function parseVex(text){
+  const re=/\b([A-Ga-g][#b]?)(\d)\b/g;const keys=[];let m;
+  while((m=re.exec(text))!==null)keys.push(m[1].toLowerCase().replace('b','b')+'/'+m[2]);
+  if(!keys.length){
+    const simple=text.match(/\b([A-Ga-g][#b♯♭]?)\b/g);
+    if(simple)simple.forEach(n=>{const base=n[0].toLowerCase();const acc=n[1]==='#'||n[1]==='♯'?'#':n[1]==='b'||n[1]==='♭'?'b':'';keys.push(base+acc+'/4');});
+  }
+  return keys.slice(0,16);
+}
+
+// ── MIDI ─────────────────────────────────────────────────────────────────
+let audioCtx=null;
+function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+function noteToFreq(note){
+  const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const m=note.match(/([A-Ga-g][#b]?)(\d)/);if(!m)return 440;
+  let n=m[1].toUpperCase().replace('BB','A#').replace('EB','D#').replace('AB','G#').replace('DB','C#').replace('GB','F#');
+  const oct=parseInt(m[2]);const idx=notes.indexOf(n);if(idx<0)return 440;
+  return 440*Math.pow(2,((oct+1)*12+idx-69)/12);
+}
+function playNotes(noteList,tempo){
+  const ctx=getAudio();const bps=(tempo||100)/60;const dur=1/bps;
+  noteList.forEach((note,i)=>{
+    const freq=noteToFreq(note);if(!freq||freq<20)return;
+    const t=ctx.currentTime+i*dur*0.9;
+    const osc=ctx.createOscillator();const gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.frequency.value=freq;osc.type='triangle';
+    gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(0.22,t+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001,t+dur*0.8);
+    osc.start(t);osc.stop(t+dur);
+  });
+}
+function midiPlayer(notes,label){
+  const id='bpm-'+Math.random().toString(36).slice(2,7);
+  return `<div class="midi-player"><span class="midi-player-title">▶ ${label||'Play'}</span><div class="tempo-control"><label>BPM</label><input type="text" id="${id}" value="80" style="width:46px"></div><button class="play-btn" onclick="playNotes(${JSON.stringify(notes)},parseInt(document.getElementById('${id}').value)||80)">▶</button></div>`;
+}
+
+// ── EXPORT ────────────────────────────────────────────────────────────────
+function exportTXT(id,fn){const el=document.getElementById(id);if(!el)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([el.innerText],{type:'text/plain'}));a.download=fn||'musictranscribe.txt';a.click();}
+function exportPDF(id,fn){const{jsPDF}=window.jspdf;const doc=new jsPDF();doc.setFontSize(14);doc.text('MusicTranscribe',14,18);doc.setFontSize(9);const el=document.getElementById(id);const lines=doc.splitTextToSize(el?el.innerText:'',182);doc.text(lines,14,28);doc.save(fn||'musictranscribe.pdf');}
+function copyResult(id){const el=document.getElementById(id);if(el)navigator.clipboard.writeText(el.innerText).then(()=>{const b=event.target;const o=b.textContent;b.textContent='✓ Copied';setTimeout(()=>b.textContent=o,1500);});}
+function exportBar(id,fn){return `<div class="export-bar"><button class="btn btn-sm" onclick="copyResult('${id}')">⎘ Copy</button><button class="btn btn-sm" onclick="exportTXT('${id}','${fn}.txt')">↓ .txt</button><button class="btn btn-sm" onclick="exportPDF('${id}','${fn}.pdf')">↓ PDF</button></div>`;}
+
+// ── FINGERING INSERT ──────────────────────────────────────────────────────
+function insertFinger(sym){
+  const ta=document.getElementById('classical-input');
+  if(!ta)return;
+  const pos=ta.selectionStart;
+  ta.value=ta.value.slice(0,pos)+sym+ta.value.slice(pos);
+  ta.selectionStart=ta.selectionEnd=pos+sym.length;
+  ta.focus();
+}
+
+// ── EXAMPLES ─────────────────────────────────────────────────────────────
+function loadExample(panel){
+  if(panel==='transpose'){
+    document.getElementById('transpose-input').value='E4 F#4 G#4 A4 B4 C#5 D#5 E5';
+    document.getElementById('from-instr').value='C';
+    document.getElementById('to-instr').value='renaissance-lute';
+  } else if(panel==='tab'){
+    document.getElementById('tab-input').value=
+`e|--0---3---5---3---0-----------|
+B|--1---3---5---3---1-----------|
+G|--0---2---4---2---0-----------|
+D|--2---0---2---0---2-----------|
+A|--3-----------3---3-----------|
+E|------------------------------|`;
+  } else if(panel==='classical'){
+    document.getElementById('classical-input').value='Opening of Sor Study Op.6 No.6 — E minor melody on first string with alternating bass on open strings E and A';
+    document.getElementById('classical-task').value='fingering';
+  } else if(panel==='early'){
+    document.getElementById('early-instr').value='baroque-lute-11';
+    document.getElementById('early-task').value='tuning';
+    document.getElementById('early-input').value='What are the pitches of all 11 courses of a baroque lute in D minor tuning, and how does this relate to playing in different keys?';
+  } else if(panel==='roman'){
+    document.getElementById('roman-input').value='| Dm | A7 | Dm | C |\n| F | C | Gm | A7 |\n| Dm | Bb | A7 | Dm |';
+    document.getElementById('roman-key').value='D minor';
+    document.getElementById('roman-depth').value='baroque';
+    document.getElementById('roman-context').value='Baroque, could be from a Sarabande or Pavan';
+  }
+}
+
+function clearAll(panel){
+  const map={transpose:['transpose-input','transpose-context'],tab:['tab-input','tab-context'],classical:['classical-input'],earlym:['early-input','early-context'],scan:['scan-desc'],theory:['theory-input'],roman:['roman-input','roman-context']};
+  (map[panel]||[]).forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const res=document.getElementById((panel==='earlym'?'early':panel)+'-result');
+  if(res)res.innerHTML='<div class="output-placeholder"><div class="big-icon">♪</div><p>Ready.</p></div>';
+  if(panel==='scan') clearScanFile();
+}
+
+// ── THEORY PRESETS ────────────────────────────────────────────────────────
+const presets={
+  scale:'What are the notes in E minor (natural, harmonic, melodic) and how do they relate to D major?',
+  chord:'Explain the dominant 7th chord: what notes, where it resolves, and why it creates tension.',
+  rhythm:'Explain the difference between 3/4, 6/8, and 12/8 time signatures with examples.',
+  terms:'What do these terms mean: allegro, andante, forte, piano, ritardando, con fuoco, dolce?',
+  arrange:'How do I arrange a piano piece for classical guitar? What must I simplify and what can I keep?',
+  baroque:'Explain baroque ornamentation: trills, mordents, appoggiaturas, turns, and how to perform them.',
+  figured:'How do I read and realize a figured bass? Explain the numbers and what chords they indicate.'
+};
+function theoryPreset(btn,key){document.querySelectorAll('.sub-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('theory-input').value=presets[key]||'';}
+
+// ── SCAN FILE HANDLING (images + PDFs) ───────────────────────────────────
+let scanFileData=null;   // base64 string
+let scanMediaType=null;  // MIME type
+let scanIsPDF=false;
+let scanPageCount=0;
+
+function togglePageRange(){
+  const mode=document.getElementById('scan-page-mode').value;
+  const rangeInput=document.getElementById('scan-page-range');
+  rangeInput.style.display=(mode==='range'||mode==='specific')?'block':'none';
+}
+
+function clearScanFile(){
+  scanFileData=null;scanMediaType=null;scanIsPDF=false;scanPageCount=0;
+  document.getElementById('scan-preview').style.display='none';
+  document.getElementById('scan-preview').src='';
+  document.getElementById('scan-file-info').style.display='none';
+  document.getElementById('scan-page-selector').style.display='none';
+  document.getElementById('scan-file').value='';
+}
+
+function loadScanFile(file){
+  if(!file)return;
+  const isPDF=file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf');
+  const isImage=file.type.startsWith('image/');
+  if(!isPDF&&!isImage){alert('Please upload an image (JPG, PNG) or a PDF file.');return;}
+  scanMediaType=isPDF?'application/pdf':file.type;
+  scanIsPDF=isPDF;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const full=ev.target.result;
+    scanFileData=full.split(',')[1];
+    // Show file info bar
+    const info=document.getElementById('scan-file-info');
+    info.style.display='flex';
+    document.getElementById('scan-file-icon').textContent=isPDF?'📄':'🖼️';
+    document.getElementById('scan-file-name').textContent=file.name;
+    document.getElementById('scan-file-pages').textContent=isPDF?'PDF':'Image';
+    // Show image preview for images only
+    const preview=document.getElementById('scan-preview');
+    if(isImage){preview.src=full;preview.style.display='block';}
+    else{preview.style.display='none';}
+    // Show page selector for PDFs
+    document.getElementById('scan-page-selector').style.display=isPDF?'block':'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleScanFile(e){loadScanFile(e.target.files[0]);}
+
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{
+  e.preventDefault();dz.classList.remove('drag-over');
+  loadScanFile(e.dataTransfer.files[0]);
+});
+
+// ── RENDER RESULT HELPER ─────────────────────────────────────────────────
+function renderResult(resultId, text, staffContainerId, exportFilename, playLabel, noteData) {
+  const noteList = text.match(/\b([A-Ga-g][#b♯♭]?\d)\b/g)||[];
+  const hasNotes = noteData && noteData.notes && noteData.notes.length > 0;
+  const staffHtml = `<div id="${staffContainerId}" class="sheet-music-container" style="display:none;margin:.75rem 0;background:white;border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow-x:auto"></div>`;
+  const midiHtml = noteList.length ? midiPlayer(noteList, playLabel||'Play passage') : '';
+  showOutput(resultId, `
+    <div class="output-area" style="min-height:auto">${text.replace(/\n/g,'<br>')}</div>
+    ${staffHtml}
+    ${midiHtml}
+    ${exportBar(resultId, exportFilename)}
+  `);
+  if(hasNotes) renderSheetMusic(staffContainerId, noteData);
+  else if(noteList.length) {
+    // fallback to old renderer
+    const el = document.getElementById(staffContainerId);
+    if(el) { el.style.display='block'; renderStaff(staffContainerId, parseVex(text)); }
+  }
+}
+
+// ── TRANSPOSE ────────────────────────────────────────────────────────────
+async function doTranspose(){
+  const notes=document.getElementById('transpose-input').value.trim();
+  if(!notes){alert('Please enter notes or a passage.');return;}
+  const from=document.getElementById('from-instr');
+  const to=document.getElementById('to-instr');
+  const key=document.getElementById('key-sig').value;
+  const oct=document.getElementById('octave-shift').value;
+  const ctx=document.getElementById('transpose-context').value;
+  showLoading('transpose-result','Calculating transposition…');
+  const sys=`You are an expert music transcriptionist with deep knowledge of all Western instruments including historical and early music instruments. Provide accurate transpositions with proper accidentals. For early instruments, note any idiomatic considerations like open strings, course doublings, or typical playable ranges. Structure output as: 1) Transposed notes listed clearly 2) Interval/method 3) Range notes 4) Brief explanation.`;
+  const prompt=`Transpose: From ${from.options[from.selectedIndex].text} → To ${to.options[to.selectedIndex].text}\nKey: ${key}\nOctave: ${oct==='0'?'none':oct+' octave(s)'}\n${ctx?'Context: '+ctx+'\n':''}Notes: ${notes}`;
+  try{
+    const {text:result, noteData} = await callClaudeForNotes(prompt, sys);
+    renderResult('transpose-result', result, 'staff-transpose', 'transposition', 'Transposed passage', noteData);
+  }catch(e){showOutput('transpose-result',`<p class="error-msg">Error: ${e.message}</p>`);}
+}
+
+// ── TAB ───────────────────────────────────────────────────────────────────
+async function doTab(){
+  const tab=document.getElementById('tab-input').value.trim();
+  if(!tab){alert('Please paste tablature.');return;}
+  const tuning=document.getElementById('tab-tuning');
+  const fmt=document.getElementById('tab-output').value;
+  const capo=document.getElementById('capo-fret').value;
+  const ctx=document.getElementById('tab-context').value;
+  showLoading('tab-result','Reading tablature…');
+  const tuningMap={
+    'guitar-std':'Standard guitar EADGBe',
+    'guitar-drop-d':'Drop D DADGBe','guitar-open-g':'Open G DGDGBd',
+    'guitar-open-d':'Open D DADf#Ad','guitar-dadgad':'DADGAD',
+    'guitar-open-e':'Open E EBE G#Be','guitar-open-a':'Open A EAEAc#e',
+    'guitar-half-step-down':'Half-step down Eb Ab Db Gb Bb eb',
+    'classical-std':'Classical guitar standard EADGBe (sounds octave lower than written)',
+    'classical-dropped-d':'Classical guitar dropped D DADGBe',
+    'bass-std':'Standard bass EADg','bass-5':'5-string bass BEADg',
+    'bass-6':'6-string bass BEADgc','bass-drop-d':'Bass drop D DADg',
+    'renaissance-lute-6':'Renaissance lute 6-course: courses tuned (low to high) G C F A D G (G tuning)',
+    'renaissance-lute-7':'Renaissance lute 7-course: A d G c f a d (with bass rider)',
+    'baroque-lute-11':'Baroque lute 11-course D minor tuning: A# F C G D A F D A F D (low to high)',
+    'baroque-gtr':'Baroque guitar 5-course A tuning: A D G B e (with unison/octave doublings)',
+    'vihuela':'Vihuela 6-course G tuning: G C F A D G (identical to renaissance lute)',
+    'theorbo':'Theorbo: melody courses A D G C F# and bass diapasons reentrant G A B♭ C D (varies by maker)',
+    'ukulele':'Ukulele GCEa','ukulele-baritone':'Baritone ukulele DGBe',
+    'banjo-5':'5-string banjo gDGBd','mandolin':'Mandolin GDAe',
+    'irish-bouzouki':'Irish bouzouki GDAd','charango':'Charango GCEAe'
+  };
+  const fmtMap={
+    notes:'List exact note names with octave for each position.',
+    chords:'Identify and name chord shapes with voicing details.',
+    full:'Full description: notes, chords, techniques (h=hammer-on p=pull-off /\\=slide b=bend ~=vibrato), rhythm, and musical style.',
+    lilypond:'Convert to LilyPond text notation.',
+    standard:'Describe as standard notation: note values, articulations, phrasing.'
+  };
+  const prompt=`Read this ASCII tablature.\nInstrument: ${tuningMap[document.getElementById('tab-tuning').value]||tuning.options[tuning.selectedIndex].text}\n${capo!=='0'?'Capo on fret '+capo+' (all pitches raised '+capo+' semitones)\n':''}Task: ${fmtMap[fmt]}\n${ctx?'Context: '+ctx+'\n':''}Tablature:\n${tab}`;
+  try{
+    const {text:result, noteData} = await callClaudeForNotes(prompt,'You are an expert guitarist, lutenist, and music transcriptionist. Parse ASCII tablature accurately for all instrument types including early music instruments. Identify techniques and be precise about pitches, especially for historical instruments with course doublings.');
+    renderResult('tab-result', result, 'staff-tab', 'tablature-reading', 'Tab melody', noteData);
+  }catch(e){showOutput('tab-result',`<p class="error-msg">Error: ${e.message}</p>`);}
+}
+
+// ── CLASSICAL GUITAR ─────────────────────────────────────────────────────
+async function doClassical(){
+  const input=document.getElementById('classical-input').value.trim();
+  if(!input){alert('Please describe the passage.');return;}
+  const task=document.getElementById('classical-task').value;
+  const level=document.getElementById('classical-level').value;
+  const tuning=document.getElementById('classical-tuning').value;
+  const capo=document.getElementById('classical-capo').value;
+  const rhStyle=document.getElementById('rh-style').value;
+  showLoading('classical-result','Analyzing for classical guitar…');
+  const taskMap={
+    fingering:'Provide complete fingering for both hands. Use standard notation: p i m a c for right hand, ① ② ③ ④ for left hand fingers, position markers (I II III... pos.), string numbers (①②③④⑤⑥), barre symbols (B½B). Format clearly for a performer.',
+    position:'Suggest the optimal left-hand position(s), explaining why each position works and any shifts required.',
+    string:'Specify which string to use for each note and why, considering tone color, legato possibilities, and open string resonance.',
+    transpose:'Transpose this passage for classical guitar, preserving idiomatic playability. Suggest the best key and position.',
+    technique:'Explain the technique required, period style, ornamentation, and interpretation guidance.',
+    simplify:'Simplify this passage for the given level while preserving the musical essence. Note what was removed or simplified.',
+    arrangement:'Arrange this for solo classical guitar: melody, bass, and inner voices. Use idiomatic textures. Note any compromises required.'
+  };
+  const prompt=`Classical guitar task: ${taskMap[task]}\nPlayer level: ${level}\nTuning: ${tuning}${capo!=='0'?' | Capo fret '+capo:''}\nRight-hand style: ${rhStyle}\nPassage: ${input}`;
+  const sys='You are a master classical guitar pedagogue and arranger with deep knowledge of the standard repertoire (Sor, Giuliani, Tárrega, Segovia, Villa-Lobos, Britten, etc.). Provide practical, performer-ready guidance using standard classical guitar notation conventions (p i m a, position numbers, string circles, barre markings).';
+  try{
+    const {text:result, noteData} = await callClaudeForNotes(prompt,sys);
+    renderResult('classical-result', result, 'staff-classical', 'classical-guitar', 'Classical guitar', noteData);
+  }catch(e){showOutput('classical-result',`<p class="error-msg">Error: ${e.message}</p>`);}
+}
+
+// ── EARLY MUSIC ───────────────────────────────────────────────────────────
+async function doEarlyMusic(){
+  const input=document.getElementById('early-input').value.trim();
+  const instr=document.getElementById('early-instr');
+  const task=document.getElementById('early-task').value;
+  const tabSystem=document.getElementById('early-tab-system').value;
+  const ctx=document.getElementById('early-context').value;
+  if(!input){alert('Please describe or paste something to analyze.');return;}
+  showLoading('early-result','Consulting the early music sources…');
+  const taskMap={
+    tuning:'Explain the complete tuning of this instrument: all courses and their pitches in standard notation, the system of octave doublings (unisons or octaves), historical variants, and how the tuning affects playing in different modes/keys.',
+    tablature:`Read this tablature written in ${tabSystem} system. Identify all notes with pitch names and octaves. Note any ornament symbols, rhythmic signs, and performance markings. Provide a bar-by-bar transcription.`,
+    transpose:'Transpose this passage idiomatically for this historical instrument. Consider comfortable keys, open strings/courses, and historical pitch standards (A=415 or A=440). Note any necessary octave adjustments.',
+    range:'Describe the complete playable range, the most comfortable keys and modes, and which keys/modes were historically avoided or require retuning.',
+    technique:'Explain playing technique, right-hand position, ornamentation conventions (trillo, mordente, groppo, tirata, etc.), and stylistic interpretation for the period.',
+    modern:'Convert this old notation to modern standard notation. Explain any symbols or conventions that differ from modern practice.',
+    compare:'Compare this historical instrument to its modern equivalent: tuning differences, range, technique, tone, repertoire, and what is gained/lost in transcription.',
+    repertoire:'List the most important repertoire for this instrument, key composers, principal editions (Editions de l\'Oiseau-Lyre, Lute Society, SPES, etc.), and recommended recordings.',
+    continuo:'Explain how to realize a continuo part on this instrument: chord voicings, filling in figures, stylistic conventions, and interaction with the ensemble.'
+  };
+  const prompt=`Instrument: ${instr.options[instr.selectedIndex].text}\nTask: ${taskMap[task]}\n${ctx?'Period/style context: '+ctx+'\n':''}Input: ${input}`;
+  const sys='You are a leading scholar and performer of early music with expertise in historical instruments, historical performance practice, and period tablature systems (French lute tab, Italian tab, German Buchstabentabulatur, Spanish vihuela tab, alfabeto). You know the treatises (Ganassi, Dowland, Mace, Denis Gaultier, Weiss, Sanz, Kapsberger, Praetorius, Mersenne) and current editorial practice.';
+  try{
+    const {text:result, noteData} = await callClaudeForNotes(prompt,sys);
+    renderResult('early-result', result, 'staff-early', 'early-music-analysis', 'Early music', noteData);
+  }catch(e){showOutput('early-result',`<p class="error-msg">Error: ${e.message}</p>`);}
+}
+
+// ── SCAN ─────────────────────────────────────────────────────────────────
+async function doScan(){
+  const desc=document.getElementById('scan-desc').value.trim();
+  const task=document.getElementById('scan-task').value;
+  const target=document.getElementById('scan-target').value;
+  if(!scanFileData&&!desc){alert('Please upload an image or PDF, or describe the score.');return;}
+  showLoading('scan-result', scanIsPDF ? 'Reading PDF score…' : 'Reading score…');
+
+  // Build page context string for PDFs
+  let pageCtx='';
+  if(scanIsPDF){
+    const mode=document.getElementById('scan-page-mode').value;
+    const rangeVal=document.getElementById('scan-page-range').value.trim();
+    if(mode==='first') pageCtx=' Focus on page 1 only.';
+    else if(mode==='range'&&rangeVal) pageCtx=` Analyze pages ${rangeVal}.`;
+    else if(mode==='specific'&&rangeVal) pageCtx=` Analyze these specific pages: ${rangeVal}.`;
+    else pageCtx=' Analyze all pages.';
+  }
+
+  const taskMap={
+    read:'Transcribe ALL notes exactly: key, time signature, clef, every note with pitch and duration, dynamics, articulations, ornaments, and text markings.',
+    transpose:`Identify all notes, then transpose for ${target}. List original notes, then transposed notes with any range adjustments needed.`,
+    chords:'Identify all chord progressions, names, harmonic movement, and any modulations.',
+    modernize:'Rewrite in modern standard notation, explaining any historical symbols, old clefs (C clefs, French violin clef), tablature signs, or unusual conventions.',
+    fingering:'Transcribe all notes and suggest practical fingering for a performer.',
+    analyze:'Complete musical analysis: key, time, form, melodic motifs, harmonic language, style period, composer if identifiable, and performance notes.',
+    'early-tab':'Read this as early music tablature. Identify the system (French, Italian, German, or Spanish), transcribe all notes with pitch names and octaves, note all ornament signs and rhythmic indicators.'
+  };
+
+  const fileDesc = scanFileData
+    ? (scanIsPDF ? 'This is a PDF of sheet music or a musical score.' : 'This is a photo of sheet music or a musical score.')
+    : `Score description: "${desc}".`;
+  const prompt = `${fileDesc}${pageCtx} ${taskMap[task]} Be thorough and practical.`;
+
+  try{
+    const {text:result, noteData} = await callClaudeForNotes(prompt,'You are an expert music reader, music historian, and transcriptionist. You can read all clefs, tablature systems, and historical notation.',scanFileData,scanMediaType||'image/jpeg');
+    renderResult('scan-result', result, 'staff-scan', 'score-analysis', 'Score passage', noteData);
+  }catch(e){showOutput('scan-result',`<p class="error-msg">Error: ${e.message}</p>`);}
+}
+
+// ── THEORY ────────────────────────────────────────────────────────────────
+async function doTheory(){
+  const q=document.getElementById('theory-input').value.trim();
+  if(!q){alert('Please enter a question.');return;}
+  const instr=document.getElementById('theory-instr').value;
+  const level=document.getElementById('theory-level').value;
+  showLoading('theory-result','Consulting the theory books…');
+  const prompt=`${instr?'Instrument context: '+instr+'. ':''}${q}`;
+  try{
+    const {text:result, noteData} = await callClaudeForNotes(prompt,`You are a brilliant music theory teacher and musicologist. Adapt explanations to ${level} level. Cover both common practice and historical theory when relevant. Use examples liberally. For early music questions, cite relevant treatises.`);
+    renderResult('theory-result', result, 'staff-theory', 'theory-answer', 'Theory example', noteData);
+  }catch(e){showOutput('theory-result',`<p class="error-msg">Error: ${e.message}</p>`);}
+}
+
+// ── ROMAN NUMERAL ─────────────────────────────────────────────────────────
+async function doRoman(){
+  const chords=document.getElementById('roman-input').value.trim();
+  if(!chords){alert('Please enter a chord progression.');return;}
+  const key=document.getElementById('roman-key').value;
+  const depth=document.getElementById('roman-depth').value;
+  const ctx=document.getElementById('roman-context').value;
+  showLoading('roman-result','Analyzing harmony…');
+  const depthMap={basic:'Basic Roman numerals (I ii iii IV V vi vii°)',extended:'Extended with 7th chords, secondary dominants, borrowed chords, Neapolitan, augmented 6ths',jazz:'Full jazz: alterations, tritone substitutions, modal interchange, reharmonization',baroque:'Baroque style with figured bass notation, suspensions (4-3 7-6 9-8), cadence types (PAC IAC DC HC)',schenker:'Schenkerian analysis: identify Ursatz, prolongations, linear progressions, Bassbrechung'};
+  const prompt=`Analyze this chord progression in ${key}.\nStyle: ${depthMap[depth]}\n${ctx?'Context: '+ctx+'\n':''}Progression:\n${chords}\n\nProvide: Roman numeral for each chord, harmonic function (T/S/D), any notable features (borrowed chords, secondary dominants, deceptive cadences), and an overall harmonic summary.`;
+  try{
+    const result=await callClaude(prompt,'You are a music theory analyst with expertise from Renaissance counterpoint through jazz harmony. Provide clear, insightful harmonic analysis appropriate to the style and period.');
+    showOutput('roman-result',`<div class="output-area" style="min-height:auto">${result.replace(/\n/g,'<br>')}</div>${exportBar('roman-result','harmonic-analysis')}`);
+  }catch(e){showOutput('roman-result',`<p class="error-msg">Error: ${e.message}</p>`);}
+}
+</script>
+</body>
+</html>
