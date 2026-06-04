@@ -6,7 +6,7 @@
 <title>MusicTranscribe — Music Notation & Transcription</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vexflow/4.2.2/vexflow.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
@@ -979,17 +979,12 @@ function parseVex(text){
 // ── MIDI ─────────────────────────────────────────────────────────────────
 let audioCtx=null;
 function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
-function noteToFreq(note) {
-  const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  // Handle both formats: "C4" and "c/4"
-  const cleaned = note.replace('/','').toUpperCase();
-  const m = cleaned.match(/([A-G][#B]?)(\d)/);
-  if (!m) return 0;
-  let n = m[1].replace('BB','A#').replace('EB','D#').replace('AB','G#').replace('DB','C#').replace('GB','F#');
-  const oct = parseInt(m[2]);
-  const idx = notes.indexOf(n);
-  if (idx < 0) return 0;
-  return 440 * Math.pow(2, ((oct + 1) * 12 + idx - 69) / 12);
+function noteToFreq(note){
+  const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const m=note.match(/([A-Ga-g][#b]?)(\d)/);if(!m)return 440;
+  let n=m[1].toUpperCase().replace('BB','A#').replace('EB','D#').replace('AB','G#').replace('DB','C#').replace('GB','F#');
+  const oct=parseInt(m[2]);const idx=notes.indexOf(n);if(idx<0)return 440;
+  return 440*Math.pow(2,((oct+1)*12+idx-69)/12);
 }
 function playNotes(noteList,tempo){
   const ctx=getAudio();const bps=(tempo||100)/60;const dur=1/bps;
@@ -1006,14 +1001,97 @@ function playNotes(noteList,tempo){
 }
 function midiPlayer(notes,label){
   const id='bpm-'+Math.random().toString(36).slice(2,7);
-  return `<div class="midi-player"><span class="midi-player-title">▶ ${label||'Play'}</span><div class="tempo-control"><label>BPM</label><input type="text" id="${id}" value="80" style="width:46px"></div><button class="play-btn" onclick="playNotes(${JSON.stringify(notes)},parseInt(document.getElementById('${id}').value)||80)">▶</button></div>`;
+  return `<div class="midi-player"><span class="midi-player-title">▶ ${label||'Play'}</span><div class="tempo-control"><label>BPM</label><input type="text" id="${id}" value="80" style="width:46px"></div></div>`;
 }
 
-// ── EXPORT ────────────────────────────────────────────────────────────────
+// ── MIDI FILE EXPORT ──────────────────────────────────────────────────────
+function exportMIDI(noteData, filename) {
+  if (!noteData || !noteData.notes || !noteData.notes.length) {
+    alert('No note data available to export as MIDI.');
+    return;
+  }
+  
+  const notes = noteData.notes;
+  const tempo = 500000; // 120 BPM in microseconds per beat
+  const ticksPerBeat = 480;
+  
+  // Convert pitch string "c/4" or "f#/5" to MIDI note number
+  function pitchToMidi(pitch) {
+    const noteMap = {c:0,'c#':1,db:1,d:2,'d#':3,eb:3,e:4,f:5,'f#':6,gb:6,g:7,'g#':8,ab:8,a:9,'a#':10,bb:10,b:11};
+    const clean = pitch.toLowerCase().replace('/','');
+    const m = clean.match(/([a-g][#b]?)(\d)/);
+    if (!m) return 60;
+    const semitone = noteMap[m[1]] ?? 0;
+    const octave = parseInt(m[2]);
+    return (octave + 1) * 12 + semitone;
+  }
+  
+  // Duration string to ticks
+  function durationToTicks(dur) {
+    const map = {'w':ticksPerBeat*4,'h':ticksPerBeat*2,'q':ticksPerBeat,'8':ticksPerBeat/2,'16':ticksPerBeat/4};
+    return map[dur] || ticksPerBeat;
+  }
+  
+  // Write variable length value
+  function writeVarLen(val) {
+    if (val < 128) return [val];
+    const bytes = [];
+    let v = val;
+    bytes.unshift(v & 0x7F);
+    v >>= 7;
+    while (v > 0) { bytes.unshift((v & 0x7F) | 0x80); v >>= 7; }
+    return bytes;
+  }
+  
+  // Build track events
+  const events = [];
+  
+  // Tempo event
+  events.push(0x00, 0xFF, 0x51, 0x03,
+    (tempo >> 16) & 0xFF, (tempo >> 8) & 0xFF, tempo & 0xFF);
+  
+  // Note events
+  notes.forEach(note => {
+    const midiNote = pitchToMidi(note.pitch);
+    const ticks = durationToTicks(note.duration);
+    // Note on
+    events.push(...writeVarLen(0), 0x90, midiNote, 80);
+    // Note off
+    events.push(...writeVarLen(ticks), 0x80, midiNote, 0);
+  });
+  
+  // End of track
+  events.push(0x00, 0xFF, 0x2F, 0x00);
+  
+  // Build MIDI file
+  const trackLen = events.length;
+  const bytes = [
+    // Header chunk
+    0x4D,0x54,0x68,0x64, // MThd
+    0x00,0x00,0x00,0x06, // length = 6
+    0x00,0x00,           // format 0
+    0x00,0x01,           // 1 track
+    (ticksPerBeat >> 8) & 0xFF, ticksPerBeat & 0xFF, // ticks per beat
+    // Track chunk
+    0x4D,0x54,0x72,0x6B, // MTrk
+    (trackLen >> 24)&0xFF,(trackLen >> 16)&0xFF,(trackLen >> 8)&0xFF,trackLen&0xFF,
+    ...events
+  ];
+  
+  const blob = new Blob([new Uint8Array(bytes)], {type:'audio/midi'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (filename||'musictranscribe') + '.mid';
+  a.click();
+}
+
 function exportTXT(id,fn){const el=document.getElementById(id);if(!el)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([el.innerText],{type:'text/plain'}));a.download=fn||'musictranscribe.txt';a.click();}
 function exportPDF(id,fn){const{jsPDF}=window.jspdf;const doc=new jsPDF();doc.setFontSize(14);doc.text('MusicTranscribe',14,18);doc.setFontSize(9);const el=document.getElementById(id);const lines=doc.splitTextToSize(el?el.innerText:'',182);doc.text(lines,14,28);doc.save(fn||'musictranscribe.pdf');}
 function copyResult(id){const el=document.getElementById(id);if(el)navigator.clipboard.writeText(el.innerText).then(()=>{const b=event.target;const o=b.textContent;b.textContent='✓ Copied';setTimeout(()=>b.textContent=o,1500);});}
-function exportBar(id,fn){return `<div class="export-bar"><button class="btn btn-sm" onclick="copyResult('${id}')">⎘ Copy</button><button class="btn btn-sm" onclick="exportTXT('${id}','${fn}.txt')">↓ .txt</button><button class="btn btn-sm" onclick="exportPDF('${id}','${fn}.pdf')">↓ PDF</button></div>`;}
+function exportBar(id,fn,noteData){
+  const midiBtn = noteData ? `<button class="btn btn-sm" onclick='exportMIDI(${JSON.stringify(noteData)},"${fn}")'>↓ .mid</button>` : '';
+  return `<div class="export-bar"><button class="btn btn-sm" onclick="copyResult('${id}')">⎘ Copy</button><button class="btn btn-sm" onclick="exportTXT('${id}','${fn}.txt')">↓ .txt</button><button class="btn btn-sm" onclick="exportPDF('${id}','${fn}.pdf')">↓ PDF</button>${midiBtn}</div>`;
+}
 
 // ── FINGERING INSERT ──────────────────────────────────────────────────────
 function insertFinger(sym){
@@ -1134,24 +1212,20 @@ dz.addEventListener('drop',e=>{
 
 // ── RENDER RESULT HELPER ─────────────────────────────────────────────────
 function renderResult(resultId, text, staffContainerId, exportFilename, playLabel, noteData) {
-const noteList = noteData && noteData.notes ? noteData.notes.map(n => {
-  const p = n.pitch.replace('/','').replace('#','#').replace('b','b');
-  return p.replace(/([a-g][#b]?)(\d)/, (m,note,oct) => note.toUpperCase()+oct);
-}) : (text.match(/\b([A-Ga-g][#b♯♭]?\d)\b/g)||[]);
   const hasNotes = noteData && noteData.notes && noteData.notes.length > 0;
   const staffHtml = `<div id="${staffContainerId}" class="sheet-music-container" style="display:none;margin:.75rem 0;background:white;border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow-x:auto"></div>`;
-const midiHtml = '';
   showOutput(resultId, `
     <div class="output-area" style="min-height:auto">${text.replace(/\n/g,'<br>')}</div>
     ${staffHtml}
-    ${midiHtml}
-    ${exportBar(resultId, exportFilename)}
+    ${exportBar(resultId, exportFilename, noteData)}
   `);
   if(hasNotes) renderSheetMusic(staffContainerId, noteData);
-  else if(noteList.length) {
-    // fallback to old renderer
-    const el = document.getElementById(staffContainerId);
-    if(el) { el.style.display='block'; renderStaff(staffContainerId, parseVex(text)); }
+  else {
+    const fallbackNotes = text.match(/\b([A-Ga-g][#b♯♭]?\d)\b/g)||[];
+    if(fallbackNotes.length) {
+      const el = document.getElementById(staffContainerId);
+      if(el) { el.style.display='block'; renderStaff(staffContainerId, parseVex(text)); }
+    }
   }
 }
 
