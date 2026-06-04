@@ -833,41 +833,18 @@ async function callClaude(userMsg, system, fileData, mediaType) {
 // ── SHEET MUSIC RENDERER ──────────────────────────────────────────────────
 // Ask Claude for structured note data then render with VexFlow
 async function callClaudeForNotes(userMsg, system, fileData, mediaType) {
-  // First get the text analysis
-  const textResult = await callClaude(userMsg, system, fileData, mediaType);
-  
-  // Then ask for structured note data
-  const notePrompt = `Based on this musical passage analysis, extract ONLY the melody notes as a JSON array.
-Analysis: ${textResult}
-
-Return ONLY valid JSON in this exact format, nothing else:
-{
-  "keySig": "C",
-  "timeSig": "4/4",
-  "clef": "treble",
-  "notes": [
-    {"pitch": "c/4", "duration": "q"},
-    {"pitch": "d/4", "duration": "q"},
-    {"pitch": "e/4", "duration": "h"}
-  ]
-}
-
-Rules:
-- pitch format: note_name/octave e.g. "c/4", "f#/5", "bb/3"
-- duration: "w"=whole, "h"=half, "q"=quarter, "8"=eighth, "16"=sixteenth
-- keySig options: "C","G","D","A","E","B","F","Bb","Eb","Ab"
-- clef: "treble" or "bass"
-- Maximum 32 notes
-- Return ONLY the JSON, no other text`;
-
-  const noteResult = await callClaude(notePrompt, 'You are a music data extractor. Return only valid JSON.');
-  
+  const noteInstruction = "\n\nCRITICAL: At the very end of your response, you MUST include a JSON block in this exact format with no extra text inside it:\n<NOTES_JSON>{\"keySig\":\"C\",\"timeSig\":\"4/4\",\"clef\":\"treble\",\"notes\":[{\"pitch\":\"c/4\",\"duration\":\"q\"},{\"pitch\":\"d/4\",\"duration\":\"q\"}]}</NOTES_JSON>\nRules: pitch=note/octave (c/4 f#/5 bb/3 g/5). duration: w=whole h=half q=quarter 8=eighth. keySig: C G D A E B F Bb Eb Ab. clef: treble or bass. Max 24 notes, melody only. NO spaces or newlines inside the JSON tags.";
+  const combinedSystem = system + noteInstruction;
+  const result = await callClaude(userMsg, combinedSystem, fileData, mediaType);
   try {
-    const clean = noteResult.replace(/```json|```/g,'').trim();
-    return { text: textResult, noteData: JSON.parse(clean) };
-  } catch(e) {
-    return { text: textResult, noteData: null };
-  }
+    const match = result.match(/<NOTES_JSON>(.+?)<\/NOTES_JSON>/);
+    if (match) {
+      const noteData = JSON.parse(match[1]);
+      const cleanText = result.replace(/<NOTES_JSON>.+?<\/NOTES_JSON>/, '').trim();
+      return { text: cleanText, noteData };
+    }
+  } catch(e) { console.error('Note parse:', e); }
+  return { text: result, noteData: null };
 }
 
 // Render sheet music using VexFlow with proper multi-stave support
