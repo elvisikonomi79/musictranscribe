@@ -979,12 +979,17 @@ function parseVex(text){
 // ── MIDI ─────────────────────────────────────────────────────────────────
 let audioCtx=null;
 function getAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
-function noteToFreq(note){
-  const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  const m=note.match(/([A-Ga-g][#b]?)(\d)/);if(!m)return 440;
-  let n=m[1].toUpperCase().replace('BB','A#').replace('EB','D#').replace('AB','G#').replace('DB','C#').replace('GB','F#');
-  const oct=parseInt(m[2]);const idx=notes.indexOf(n);if(idx<0)return 440;
-  return 440*Math.pow(2,((oct+1)*12+idx-69)/12);
+function noteToFreq(note) {
+  const notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  // Handle both formats: "C4" and "c/4"
+  const cleaned = note.replace('/','').toUpperCase();
+  const m = cleaned.match(/([A-G][#B]?)(\d)/);
+  if (!m) return 0;
+  let n = m[1].replace('BB','A#').replace('EB','D#').replace('AB','G#').replace('DB','C#').replace('GB','F#');
+  const oct = parseInt(m[2]);
+  const idx = notes.indexOf(n);
+  if (idx < 0) return 0;
+  return 440 * Math.pow(2, ((oct + 1) * 12 + idx - 69) / 12);
 }
 function playNotes(noteList,tempo){
   const ctx=getAudio();const bps=(tempo||100)/60;const dur=1/bps;
